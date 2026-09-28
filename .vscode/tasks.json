@@ -1,0 +1,25 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Android: Wi-Fi 无线调试配对",
+            "type": "process",
+            "command": "adb",
+            "args": ["connect", "${input:pairAddress}"],
+            "presentation": {
+                "reveal": "always",
+                "focus": true
+            },
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "pairAddress",
+            "type": "promptString",
+            "description": "手机无线调试配对IP地址"
+        },
+    ]
+}
