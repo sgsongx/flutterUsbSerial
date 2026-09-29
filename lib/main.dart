@@ -800,6 +800,7 @@ class _SerialPageState extends State<SerialPage> {
       );
 
   Widget _composer() => Container(
+        key: const ValueKey('send-composer'),
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         decoration: const BoxDecoration(
           color: Colors.white,
