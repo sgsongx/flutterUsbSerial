@@ -5,10 +5,10 @@
 ## Flutter 串口页面
 
 - 路径/职责：`lib/main.dart` 的 `main()`、`PhoneCommApp`、`SerialPage`、`_SerialPageState` 提供设备选择、参数设置、收发、日志和文件操作界面。
-- 所有权：页面持有 `UsbPort? _port`、`_receiveSubscription`、`_usbSubscription`、控制器、`_entries`、`_history`、计数器和 `Timer`。`_connect()` 将临时端口转交 `_port`；`_disconnect()` 与 `dispose()` 清理连接/订阅/定时器。页面不拥有 Android USB 权限和文件 URI。
-- 入口/接口：`_scanDevices()`、`_connect()`、`_disconnect()`、`_send()`、`_onReceived()`、`_sendFile()`、`_saveLog()`；公开纯函数 `parseHex()`、`toHex()`、`encodeText()`。`_generation` 用于丢弃过期连接/文件发送流程。
+- 所有权：页面持有 `UsbPort? _port`、`_receiveSubscription`、`_usbSubscription`、控制器、`_entries`、`_history`、计数器、记录状态和 `Timer`。`_connect()` 将临时端口转交 `_port`；`_disconnect()` 与 `dispose()` 清理连接/订阅/定时器。页面不拥有 Android USB 权限和文件 URI。
+- 入口/接口：`_scanDevices()`、`_connect()`、`_disconnect()`、`_send()`、`_onReceived()`、`_sendFile()`、`_saveLog()`、`_toggleRecording()`、`_appendRecentToRecording()`；公开纯函数 `parseHex()`、`toHex()`、`encodeText()`、`formatTimestamp()`。`_generation` 用于丢弃过期连接/文件发送流程。
 - 依赖：`UsbSerial`/`UsbPort`；`phone_comm/files` 方法通道。依据：`lib/main.dart` 的 `initState`、`_connect`、`_sendFile`、`_saveLog`。
-- 范围：日志与发送历史仅保存在页面内存，重启后不恢复；接收文本对每次 USB 收包独立解码，跨包 UTF-8 字符可能显示异常。依据：`_entries`、`_history`、`_logItem`。
+- 范围：界面日志保留最近 800 条，发送历史仅在页面内存；实时记录按收到的日志持续写入文件。接收文本对每次 USB 收包独立解码，跨包 UTF-8 字符可能显示异常。依据：`_entries`、`_record`、`_history`、`_logItem`。
 
 ## 本地 USB 串口插件
 
@@ -19,11 +19,11 @@
 
 ## Android 文件桥接与应用壳
 
-- 路径/职责：`android/app/src/main/kotlin/com/example/phone_comm/MainActivity.kt` 继承 `FlutterActivity`，提供 `pickFile` 和 `saveLog` 两个 `phone_comm/files` 方法；`android/app/src/main/AndroidManifest.xml` 声明 USB Host 和启动 Activity。
-- 所有权：`MainActivity` 保存一次待完成的 `MethodChannel.Result`，并在 `onActivityResult()` 中处理文档选择器结果；打开文件后在缓存目录生成临时文件，页面 `_sendFile()` 使用后删除。它不处理串口数据。
-- 入口/接口：`configureFlutterEngine()` 注册方法通道，`onActivityResult()` 分发 `ACTION_OPEN_DOCUMENT`/`ACTION_CREATE_DOCUMENT` 的结果；依据：`MainActivity.kt`。
+- 路径/职责：`android/app/src/main/kotlin/com/example/phone_comm/MainActivity.kt` 继承 `FlutterActivity`，提供 `pickFile`、`saveLog`、`startRecording`、`appendRecording`、`stopRecording` 等 `phone_comm/files` 方法；`android/app/src/main/AndroidManifest.xml` 声明 USB Host 和启动 Activity。
+- 所有权：`MainActivity` 保存一次待完成的文档选择器结果，并在 `onActivityResult()` 中处理；打开文件后在缓存目录生成临时文件，页面 `_sendFile()` 使用后删除。记录流由单线程执行器串行写入并在停止或页面销毁时关闭。它不处理串口数据。
+- 入口/接口：`configureFlutterEngine()` 注册方法通道，`onActivityResult()` 分发 `ACTION_OPEN_DOCUMENT`/`ACTION_CREATE_DOCUMENT` 的结果；Android 10+ 通过 MediaStore 写入 `下载/PhoneComm/`，旧版写入应用专属文档目录。依据：`MainActivity.kt`。
 
 ## 测试与构建
 
-- `test/hex_test.dart` 覆盖 HEX 和转义编码；`test/mobile_layout_test.dart` 模拟窄屏，验证主要控件和渲染。
+- `test/hex_test.dart` 覆盖 HEX、转义编码及记录格式；`test/mobile_layout_test.dart` 模拟窄屏；`test/log_recording_test.dart` 覆盖自动滚屏及记录交互。
 - `pubspec.yaml` 引入 Flutter 和本地插件；`android/build.gradle`、`android/app/build.gradle`、`android/gradle/wrapper/gradle-wrapper.properties` 定义 Android 构建。命令及本次验证见 [构建说明](../build-guide/build.md)。

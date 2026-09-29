@@ -28,6 +28,35 @@ String toHex(List<int> bytes) => bytes
     .map((byte) => byte.toRadixString(16).padLeft(2, '0').toUpperCase())
     .join(' ');
 
+String formatTimestamp(DateTime time) {
+  String pad(int value, int width) => value.toString().padLeft(width, '0');
+  return '${pad(time.year, 4)}-${pad(time.month, 2)}-${pad(time.day, 2)} '
+      '${pad(time.hour, 2)}:${pad(time.minute, 2)}:${pad(time.second, 2)}.'
+      '${pad(time.millisecond, 3)}';
+}
+
+String normalizeRecordFileName(String input) {
+  final name = input.trim();
+  final fileName = name.contains('.') ? name : '$name.txt';
+  if (name.isEmpty ||
+      fileName.length > 100 ||
+      name == '.' ||
+      name == '..' ||
+      RegExp(r'[\\/:*?"<>|\x00-\x1F]').hasMatch(name)) {
+    throw const FormatException('请输入有效文件名（最多100字，不含路径和特殊符号）');
+  }
+  return fileName;
+}
+
+String formatLogLine(String direction, DateTime time,
+    {List<int>? data, String? message, bool includeTimestamp = true}) {
+  final prefix = includeTimestamp ? '${formatTimestamp(time)} ' : '';
+  final value = message ??
+      '${toHex(data ?? const [])}  |  '
+          '${jsonEncode(utf8.decode(data ?? const [], allowMalformed: true))}';
+  return '$prefix$direction $value\n';
+}
+
 Uint8List encodeText(String input, {bool escapes = false}) {
   if (!escapes) return Uint8List.fromList(utf8.encode(input));
   final bytes = BytesBuilder(copy: false);
@@ -81,6 +110,14 @@ class _SendHistory {
 
   final String text;
   final bool hex;
+}
+
+class _RecordingOptions {
+  _RecordingOptions(this.name, this.includeTimestamp, this.append);
+
+  final String name;
+  final bool includeTimestamp;
+  final bool append;
 }
 
 const _baudRates = [
@@ -155,6 +192,13 @@ class _SerialPageState extends State<SerialPage> {
   bool _dtr = false;
   bool _rts = false;
   bool _repeat = false;
+  bool _recording = false;
+  bool _recordBusy = false;
+  bool _recordFailed = false;
+  bool _recordTimestamp = true;
+  String? _recordName;
+  StringBuffer _recordBuffer = StringBuffer();
+  Future<void> _recordWrite = Future<void>.value();
   String _lineEnding = '无';
   Timer? _refreshTimer;
   Timer? _repeatTimer;
@@ -318,30 +362,58 @@ class _SerialPageState extends State<SerialPage> {
 
   void _onReceived(Uint8List bytes) {
     _rxBytes += bytes.length;
-    if (_showReceive) {
-      _record(_LogEntry('RX', DateTime.now(), data: Uint8List.fromList(bytes)));
-    } else {
-      _scheduleRefresh();
-    }
+    _record(_LogEntry('RX', DateTime.now(), data: Uint8List.fromList(bytes)));
   }
 
   void _record(_LogEntry entry) {
     _entries.add(entry);
     if (_entries.length > 800) _entries.removeRange(0, _entries.length - 800);
+    if (_recording && !_recordFailed) {
+      _recordBuffer.write(formatLogLine(entry.direction, entry.time,
+          data: entry.data,
+          message: entry.message,
+          includeTimestamp: _recordTimestamp));
+    }
     _scheduleRefresh();
+  }
+
+  void _queueRecordWrite(String text) {
+    if (text.isEmpty) return;
+    _recordWrite = _recordWrite.then((_) async {
+      if (_recordFailed) return;
+      await _fileChannel.invokeMethod<void>('appendRecording', {'text': text});
+    }).catchError((Object error) {
+      _recordFailed = true;
+      if (mounted) {
+        setState(() {
+          _recording = false;
+          _status = '记录失败：$error';
+        });
+      }
+    });
+  }
+
+  void _flushRecording() {
+    final text = _recordBuffer.toString();
+    _recordBuffer = StringBuffer();
+    _queueRecordWrite(text);
   }
 
   void _scheduleRefresh() {
     _refreshTimer ??= Timer(const Duration(milliseconds: 80), () {
       _refreshTimer = null;
       if (!mounted) return;
+      _flushRecording();
       setState(() {});
-      if (_autoScroll) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _logScrollController.hasClients) {
-            _logScrollController.jumpTo(0);
-          }
-        });
+      if (_autoScroll) _scrollToLatest();
+    });
+  }
+
+  void _scrollToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _logScrollController.hasClients) {
+        _logScrollController
+            .jumpTo(_logScrollController.position.maxScrollExtent);
       }
     });
   }
@@ -421,14 +493,8 @@ class _SerialPageState extends State<SerialPage> {
     if (_entries.isEmpty) return;
     final text = StringBuffer();
     for (final entry in List<_LogEntry>.of(_entries)) {
-      text.write('${_timeLabel(entry.time)} ${entry.direction} ');
-      if (entry.message != null) {
-        text.writeln(entry.message);
-      } else {
-        final data = entry.data!;
-        text.writeln(
-            '${toHex(data)}  |  ${jsonEncode(utf8.decode(data, allowMalformed: true))}');
-      }
+      text.write(formatLogLine(entry.direction, entry.time,
+          data: entry.data, message: entry.message));
     }
     try {
       final saved = await _fileChannel
@@ -437,6 +503,125 @@ class _SerialPageState extends State<SerialPage> {
     } catch (error) {
       _showError('保存日志失败：$error');
     }
+  }
+
+  Future<void> _toggleRecording() async {
+    if (_recordBusy) return;
+    if (_recording) {
+      setState(() {
+        _recording = false;
+        _recordBusy = true;
+      });
+      _flushRecording();
+      await _recordWrite;
+      try {
+        await _fileChannel.invokeMethod<bool>('stopRecording');
+        if (!_recordFailed) _showError('记录已停止：$_recordName');
+      } catch (error) {
+        _showError('停止记录失败：$error');
+      } finally {
+        if (mounted) setState(() => _recordBusy = false);
+      }
+      return;
+    }
+
+    var nameInput = 'serial-log.txt';
+    var includeTimestamp = true;
+    var append = true;
+    String? nameError;
+    final options = await showDialog<_RecordingOptions>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refresh) => AlertDialog(
+          title: const Text('开始实时记录'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('保存到 下载/PhoneComm/'),
+              TextFormField(
+                initialValue: nameInput,
+                onChanged: (value) => nameInput = value,
+                decoration:
+                    InputDecoration(labelText: '文件名', errorText: nameError),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('文件包含时间戳'),
+                value: includeTimestamp,
+                onChanged: (value) =>
+                    refresh(() => includeTimestamp = value ?? false),
+              ),
+              RadioListTile<bool>(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('追加到同名文件'),
+                value: true,
+                groupValue: append,
+                onChanged: (value) => refresh(() => append = value ?? true),
+              ),
+              RadioListTile<bool>(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('清空同名文件'),
+                value: false,
+                groupValue: append,
+                onChanged: (value) => refresh(() => append = value ?? false),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('取消')),
+            TextButton(
+              onPressed: () {
+                try {
+                  final name = normalizeRecordFileName(nameInput);
+                  Navigator.pop(dialogContext,
+                      _RecordingOptions(name, includeTimestamp, append));
+                } on FormatException catch (error) {
+                  refresh(() => nameError = error.message);
+                }
+              },
+              child: const Text('确认'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || options == null) return;
+
+    setState(() => _recordBusy = true);
+    try {
+      final location =
+          await _fileChannel.invokeMethod<String>('startRecording', {
+        'name': options.name,
+        'append': options.append,
+      });
+      if (!mounted) return;
+      setState(() {
+        _recordName = options.name;
+        _recordTimestamp = options.includeTimestamp;
+        _recordFailed = false;
+        _recording = true;
+        _status = '正在记录：$location';
+      });
+    } catch (error) {
+      _showError('开始记录失败：$error');
+    } finally {
+      if (mounted) setState(() => _recordBusy = false);
+    }
+  }
+
+  Future<void> _appendRecentToRecording() async {
+    if (!_recording || _entries.isEmpty) return;
+    _flushRecording();
+    final entries = List<_LogEntry>.of(_entries);
+    _queueRecordWrite(entries
+        .map((entry) => formatLogLine(entry.direction, entry.time,
+            data: entry.data,
+            message: entry.message,
+            includeTimestamp: _recordTimestamp))
+        .join());
+    await _recordWrite;
+    if (!_recordFailed) _showError('最近 ${entries.length} 条已追加到 $_recordName');
   }
 
   Future<void> _setDtr(bool value) async {
@@ -466,6 +651,12 @@ class _SerialPageState extends State<SerialPage> {
     ++_generation;
     _refreshTimer?.cancel();
     _repeatTimer?.cancel();
+    if (_recording) {
+      _flushRecording();
+      _recordWrite
+          .then((_) => _fileChannel.invokeMethod<bool>('stopRecording'))
+          .catchError((Object _) {});
+    }
     _usbSubscription?.cancel();
     _receiveSubscription?.cancel();
     _port?.close();
@@ -473,11 +664,6 @@ class _SerialPageState extends State<SerialPage> {
     _periodController.dispose();
     _logScrollController.dispose();
     super.dispose();
-  }
-
-  String _timeLabel(DateTime time) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
   }
 
   Widget _settingDropdown(
@@ -575,12 +761,6 @@ class _SerialPageState extends State<SerialPage> {
                   const Text('接收设置',
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('显示时间戳'),
-                    value: _showTime,
-                    onChanged: (value) => update(() => _showTime = value),
-                  ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('自动滚屏'),
@@ -755,49 +935,53 @@ class _SerialPageState extends State<SerialPage> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: Color(0xFFECF0F5)))),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (_showTime) ...[
-          Text(_timeLabel(entry.time),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (_showTime)
+          Text(formatTimestamp(entry.time),
               style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          const SizedBox(width: 8),
-        ],
-        SizedBox(
-          width: 30,
-          child: Text(entry.direction,
-              style: TextStyle(
-                  fontSize: 11, color: color, fontWeight: FontWeight.bold)),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: _wrapLines
-              ? content
-              : SingleChildScrollView(
-                  scrollDirection: Axis.horizontal, child: content),
-        ),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(
+            width: 30,
+            child: Text(entry.direction,
+                style: TextStyle(
+                    fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _wrapLines
+                ? content
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal, child: content),
+          ),
+        ]),
       ]),
     );
   }
 
-  Widget _logPanel() => Expanded(
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFDCE5EF)),
-          ),
-          child: _entries.isEmpty
-              ? const Center(
-                  child: Text('等待串口数据…', style: TextStyle(color: Colors.grey)))
-              : ListView.builder(
-                  controller: _logScrollController,
-                  reverse: true,
-                  itemCount: _entries.length,
-                  itemBuilder: (context, index) =>
-                      _logItem(_entries[_entries.length - index - 1]),
-                ),
+  Widget _logPanel() {
+    final visibleEntries = _showReceive
+        ? _entries
+        : _entries.where((entry) => entry.direction != 'RX').toList();
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFDCE5EF)),
         ),
-      );
+        child: visibleEntries.isEmpty
+            ? const Center(
+                child: Text('等待串口数据…', style: TextStyle(color: Colors.grey)))
+            : ListView.builder(
+                controller: _logScrollController,
+                itemCount: visibleEntries.length,
+                itemBuilder: (context, index) =>
+                    _logItem(visibleEntries[index]),
+              ),
+      ),
+    );
+  }
 
   Widget _composer() => Container(
         key: const ValueKey('send-composer'),
@@ -900,45 +1084,80 @@ class _SerialPageState extends State<SerialPage> {
           if (!keyboardOpen) _connectionPanel(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 2, 8, 4),
-            child: Row(children: [
-              const Text('数据日志',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const Spacer(),
-              ChoiceChip(
-                label: const Text('ASCII'),
-                selected: !_hexReceive,
-                onSelected: (_) => setState(() => _hexReceive = false),
-              ),
-              const SizedBox(width: 6),
-              ChoiceChip(
-                label: const Text('HEX'),
-                selected: _hexReceive,
-                onSelected: (_) => setState(() => _hexReceive = true),
-              ),
-              IconButton(
-                  tooltip: _autoScroll ? '关闭自动滚屏' : '开启自动滚屏',
-                  onPressed: () => setState(() => _autoScroll = !_autoScroll),
-                  icon: Icon(_autoScroll
-                      ? Icons.vertical_align_bottom
-                      : Icons.pause_circle_outline)),
-              PopupMenuButton<String>(
-                tooltip: '日志操作',
-                icon: const Icon(Icons.more_vert),
-                onSelected: (action) {
-                  if (action == 'save') {
-                    _saveLog();
-                  } else {
-                    setState(_entries.clear);
-                  }
-                },
-                itemBuilder: (_) => [
-                  PopupMenuItem(
-                      value: 'save',
-                      enabled: _entries.isNotEmpty,
-                      child: const Text('保存当前日志到文件（最多800条）')),
-                  const PopupMenuItem(value: 'clear', child: Text('清除日志')),
-                ],
-              ),
+            child: Column(children: [
+              Row(children: [
+                const Text('数据日志',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                IconButton(
+                    tooltip: _showTime ? '隐藏界面时间戳' : '显示界面时间戳',
+                    onPressed: () => setState(() => _showTime = !_showTime),
+                    color: _showTime ? Colors.blue : Colors.grey,
+                    icon: const Icon(Icons.access_time)),
+                IconButton(
+                    tooltip: _autoScroll ? '关闭自动滚屏' : '开启自动滚屏',
+                    onPressed: () {
+                      setState(() => _autoScroll = !_autoScroll);
+                      if (_autoScroll) _scrollToLatest();
+                    },
+                    icon: Icon(_autoScroll
+                        ? Icons.vertical_align_bottom
+                        : Icons.pause_circle_outline)),
+                IconButton(
+                    tooltip: _recording ? '停止实时记录' : '开始实时记录',
+                    onPressed: _recordBusy ? null : _toggleRecording,
+                    color: _recording ? Colors.red : null,
+                    icon: Icon(_recording
+                        ? Icons.stop_circle_outlined
+                        : Icons.fiber_manual_record_outlined)),
+                PopupMenuButton<String>(
+                  tooltip: '日志操作',
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (action) {
+                    if (action == 'save') {
+                      _saveLog();
+                    } else if (action == 'append') {
+                      _appendRecentToRecording();
+                    } else if (action == 'clear') {
+                      setState(_entries.clear);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                        value: 'save',
+                        enabled: _entries.isNotEmpty,
+                        child: const Text('导出最近800条到文件')),
+                    PopupMenuItem(
+                        value: 'append',
+                        enabled: _recording && _entries.isNotEmpty,
+                        child: const Text('追加最近800条到记录文件')),
+                    const PopupMenuItem(value: 'clear', child: Text('清除日志')),
+                  ],
+                ),
+              ]),
+              Row(children: [
+                if (_recording)
+                  Expanded(
+                    child: Text('● 正在记录 $_recordName',
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            const TextStyle(color: Colors.red, fontSize: 12)),
+                  )
+                else
+                  const Spacer(),
+                ChoiceChip(
+                  label: const Text('ASCII'),
+                  selected: !_hexReceive,
+                  onSelected: (_) => setState(() => _hexReceive = false),
+                ),
+                const SizedBox(width: 6),
+                ChoiceChip(
+                  label: const Text('HEX'),
+                  selected: _hexReceive,
+                  onSelected: (_) => setState(() => _hexReceive = true),
+                ),
+              ]),
             ]),
           ),
           _logPanel(),

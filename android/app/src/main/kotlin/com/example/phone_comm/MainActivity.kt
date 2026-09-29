@@ -1,15 +1,25 @@
 package com.example.phone_comm
 
 import android.app.Activity
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
+import java.util.concurrent.Executors
 
 class MainActivity: FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingText: String? = null
+    private val recordExecutor = Executors.newSingleThreadExecutor()
+    private var recordStream: OutputStream? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -21,6 +31,55 @@ class MainActivity: FlutterActivity() {
                 }
                 try {
                     when (call.method) {
+                        "startRecording" -> recordTask(result) {
+                            val name = call.argument<String>("name")?.trim() ?: ""
+                            require(name.isNotEmpty() && name.length <= 100 && name != "." && name != ".." &&
+                                name.none { it in "\\/:*?\"<>|" || it.code < 32 }) { "文件名无效" }
+                            val append = call.argument<Boolean>("append") == true
+                            recordStream?.close()
+                            recordStream = null
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                val path = "${Environment.DIRECTORY_DOWNLOADS}/PhoneComm/"
+                                val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                                val columns = arrayOf(MediaStore.Downloads._ID)
+                                val selection = "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?"
+                                val uri = contentResolver.query(collection, columns, selection,
+                                    arrayOf(name, path), null)?.use { cursor ->
+                                    if (cursor.moveToFirst()) ContentUris.withAppendedId(collection, cursor.getLong(0)) else null
+                                } ?: contentResolver.insert(collection, ContentValues().apply {
+                                    put(MediaStore.Downloads.DISPLAY_NAME, name)
+                                    put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+                                    put(MediaStore.Downloads.RELATIVE_PATH, path)
+                                }) ?: throw IllegalStateException("无法创建记录文件")
+                                recordStream = contentResolver.openOutputStream(uri, if (append) "wa" else "wt")
+                                    ?: throw IllegalStateException("无法打开记录文件")
+                                "下载/PhoneComm/$name"
+                            } else {
+                                val folder = File(getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: filesDir,
+                                    "PhoneComm")
+                                check(folder.isDirectory || folder.mkdirs()) { "无法创建记录目录" }
+                                val file = File(folder, name)
+                                recordStream = FileOutputStream(file, append)
+                                file.absolutePath
+                            }
+                        }
+                        "appendRecording" -> recordTask(result) {
+                            val stream = recordStream ?: throw IllegalStateException("尚未开始记录")
+                            try {
+                                stream.write((call.argument<String>("text") ?: "").toByteArray(Charsets.UTF_8))
+                                stream.flush()
+                            } catch (error: Exception) {
+                                recordStream = null
+                                runCatching { stream.close() }
+                                throw error
+                            }
+                            true
+                        }
+                        "stopRecording" -> recordTask(result) {
+                            recordStream?.close()
+                            recordStream = null
+                            true
+                        }
                         "pickFile" -> {
                             pendingResult = result
                             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -47,6 +106,23 @@ class MainActivity: FlutterActivity() {
                     result.error("file_picker", error.message, null)
                 }
             }
+    }
+
+    private fun recordTask(result: MethodChannel.Result, work: () -> Any?) {
+        recordExecutor.execute {
+            try {
+                val value = work()
+                runOnUiThread { result.success(value) }
+            } catch (error: Exception) {
+                runOnUiThread { result.error("record_file", error.message, null) }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        recordExecutor.execute { runCatching { recordStream?.close() }; recordStream = null }
+        recordExecutor.shutdown()
+        super.onDestroy()
     }
 
     @Deprecated("Android activity result API")

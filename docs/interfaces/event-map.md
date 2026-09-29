@@ -9,6 +9,7 @@
 | 接收 | `_connect()` 订阅 `port.inputStream`；`UsbSerialPortAdapter.open()` 注册底层 `UsbReadCallback` | `onReceivedData()` 经主线程 `EventSink` 送出字节；`_onReceived()` 更新计数/日志，`_scheduleRefresh()` 延迟重绘 | `Uint8List` 字节块；页面断开时取消订阅并关闭端口。块边界不是协议帧边界。 |
 | 发送 | `_send()` 以 `parseHex()` 或 `encodeText()` 生成字节；`_sendFile()` 从缓存文件每次读取 4096 字节 | `UsbPort.write()` 经端口方法通道调用 `UsbSerialPortAdapter.write()` | 发送成功后更新 TX 计数和日志；重复发送计时器由 `_stopRepeat()` 取消。 |
 | 文件选择/日志保存 | `_sendFile()`/`_saveLog()` 调 `phone_comm/files` | `MainActivity.configureFlutterEngine()` 注册 `pickFile`/`saveLog`；`onActivityResult()` 处理 Android 文档选择器结果 | 选择文件被复制到缓存，Dart 发送后删除；日志用 UTF-8 写用户选定 URI。一次只保留一个 `pendingResult`。 |
+| 实时记录 | `_record()` 缓存日志行，`_scheduleRefresh()` 约每 80 毫秒刷新并调用 `_flushRecording()` | `phone_comm/files` 的 `startRecording`/`appendRecording`/`stopRecording` 经 `MainActivity` 的单线程执行器写文件 | 文件时间戳由启动记录时的选项确定，独立于界面时间戳；停止时等待排队写入后关闭文件。Android 10+ 存在 `下载/PhoneComm/`。 |
 
 ```mermaid
 sequenceDiagram
