@@ -8,4 +8,12 @@ void main() {
     expect(() => parseHex('0'), throwsFormatException);
     expect(() => parseHex('0G'), throwsFormatException);
   });
+
+  test('text escapes preserve raw bytes', () {
+    expect(encodeText(r'A\r\n\x00\\中', escapes: true),
+        [65, 13, 10, 0, 92, 0xE4, 0xB8, 0xAD]);
+    expect(encodeText(r'\n'), [92, 110]);
+    expect(() => encodeText(r'\x0G', escapes: true), throwsFormatException);
+    expect(() => encodeText('abc\\', escapes: true), throwsFormatException);
+  });
 }

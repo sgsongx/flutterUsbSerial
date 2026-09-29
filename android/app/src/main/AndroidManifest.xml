@@ -2,7 +2,7 @@
     package="com.example.phone_comm">
     <uses-feature android:name="android.hardware.usb.host" android:required="true" />
    <application
-        android:label="PhoneComm 串口测试"
+        android:label="串口调试助手"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
