@@ -6,7 +6,7 @@
 
 **Android 手机方案可行，建议先做 Android 实机验证。**前提是目标手机支持 USB Host，连接线能让手机进入主机角色，适配器芯片受 App 使用的串口驱动支持，并且串口侧的电气接口与目标板匹配。Android 官方提供 USB Host API；`usb-serial-for-android` 已提供多种芯片的 App 内用户态驱动。这里的“可行”是技术路径成立，**不是**对某款手机和某个模块已通过实测的保证。[Android USB Host 文档](https://developer.android.com/develop/connectivity/usb/host)；[usb-serial-for-android 项目](https://github.com/mik3y/usb-serial-for-android)
 
-本报告默认目标是：`Android 手机 ↔ USB-C/OTG 转接线 ↔ USB 转串口模块 ↔ 待调试设备`，手机运行串口调试 App，具备收发数据和设置波特率等基本能力。当前 PhoneComm 目录只有 `.fvmrc` 等环境配置，尚无应用源码、手机型号、USB 转串口芯片型号和目标设备接口规格；因此无法做构建或实机兼容性结论。
+本报告默认目标是：`Android 手机 ↔ USB-C/OTG 转接线 ↔ USB 转串口模块 ↔ 待调试设备`，手机运行串口调试 App，具备收发数据和设置波特率等基本能力。评估时 PhoneComm 目录只有 `.fvmrc` 等环境配置；现在已有 Android/Flutter 应用源码（见 [架构概览](ARCHITECTURE.md)），但手机型号、USB 转串口芯片型号和目标设备接口规格仍待确认，因此不能据此得出实机兼容性结论。
 
 **iPhone 不宜直接按 Android 路线立项。**Apple 的 External Accessory 文档面向受支持的 MFi 配件协议；USBSerialDriverKit 官方文档标注为 macOS 可用，不能据此推断普通 iPhone App 能为任意 USB 转串口模块安装驱动。若 iPhone 是硬要求，应先针对指定机型、iOS 版本、适配器和分发方式单独验证；可能需要厂商认可的配件方案。[Apple External Accessory](https://developer.apple.com/documentation/externalaccessory)；[Apple USBSerialDriverKit](https://developer.apple.com/documentation/usbserialdriverkit)
 
@@ -16,7 +16,7 @@
 
 `usb-serial-for-android` 明确列出 FTDI FT232 系列、Silicon Labs CP210x、WCH CH340/CH341A、Prolific PL2303 和通用 CDC/ACM 等支持范围。**芯片系列受支持不等于手头模块必定可用**：特殊 VID/PID、复合设备接口、芯片变种可能需要自定义探测规则或额外适配；未知芯片可能根本没有现成驱动。应记录实际 USB VID/PID 与接口描述符，再判断匹配路径。[支持设备清单及探测说明](https://github.com/mik3y/usb-serial-for-android)；[驱动 FAQ](https://github.com/mik3y/usb-serial-for-android/wiki/FAQ)
 
-若采用 Flutter，建议由 Dart 实现界面、日志显示和发送输入，Android 原生层负责 `UsbManager`、权限、串口库与持续读取，通过平台通道传送字节和状态。Flutter 官方支持这一路径。当前目录的 `.fvmrc` 指向 Flutter 3.0.5，实际 Flutter/Gradle/Android 构建兼容性须在创建应用后验证，不能仅凭版本文件下结论。[Flutter 平台通道](https://docs.flutter.dev/platform-integration/platform-channels)
+若采用 Flutter，建议由 Dart 实现界面、日志显示和发送输入，Android 原生层负责 `UsbManager`、权限、串口库与持续读取，通过平台通道传送字节和状态。Flutter 官方支持这一路径。当前目录的 `.fvmrc` 指向 Flutter 3.0.5；现已实现应用，静态分析和 Flutter 测试通过，Android 构建与实机兼容性仍需单独验证。[Flutter 平台通道](https://docs.flutter.dev/platform-integration/platform-channels)
 
 ## 主要风险与应对
 

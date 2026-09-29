@@ -1,0 +1,97 @@
+{
+  "version": 2,
+  "status": "complete",
+  "last_audit_commit": null,
+  "audited_at": "2026-09-29T11:53:46.8223114Z",
+  "project_type": "Flutter Android USB serial demo",
+  "build_system": "Flutter/FVM + Android Gradle",
+  "knowledge": {
+    "architecture": "ARCHITECTURE.md",
+    "index": "docs/index.md",
+    "modules": "docs/architecture/modules.md",
+    "startup": "docs/architecture/startup-flow.md",
+    "events": "docs/interfaces/event-map.md",
+    "build": "docs/build-guide/build.md",
+    "agents": "AGENTS.md"
+  },
+  "coverage": {
+    "configurations": [
+      "Flutter 3.0.5 / Dart 2.17.6",
+      "Android compileSdkVersion 33, debug/test path"
+    ],
+    "excluded": [
+      "Generated/build output",
+      "Bundled third-party plugin helper implementation beyond the active bridge"
+    ],
+    "limitations": [
+      "No .codegraph directory or live language-service query was available; source and rg were used",
+      "No APK build, device deployment, USB permission or physical serial test in this audit"
+    ]
+  },
+  "tbd": [
+    "Target phone, USB serial adapter chipset and board electrical interface are not specified; validate on hardware"
+  ],
+  "snapshot": {
+    "exclude": [
+      ".codex/knowledge-state.json"
+    ],
+    "files": {
+      ".fvmrc": "a73dc8ead754fc0699e4a7da37bc789536291c01f24c099320bb0245b20bf6f0",
+      ".gitignore": "3186c229756dd1d077011f0cad56390d61c0fa5bad96066db7b07d70f88fa7f6",
+      ".idea/libraries/Dart_SDK.xml": "a606150bfae56e61362ebab5a714290312ce0f0c94ded3d412276f9ed08021b5",
+      ".idea/libraries/KotlinJavaRuntime.xml": "124b21c81c4a853e4dab5e4aa40c6502d5c09f4a9b2a6fdba540e10f67e43738",
+      ".idea/modules.xml": "6080947968a14d88bf4f9ea91d37ea03cccbb711cb790fb451e3edf40fcb170f",
+      ".idea/runConfigurations/main_dart.xml": "75188212480010c08797294663d15f00fd5ca1f474173a5d919493b17b6d9518",
+      ".idea/workspace.xml": "63b91e4524951ca903943571e89878eff35eebf38d2d530de46f32354270b526",
+      ".metadata": "bc5be07f002185ad58040463c12ef14c49d902bd36f9601288a029c8613fe939",
+      ".vscode/settings.json": "600ca31df2a46477a75f804651a528a9d19635e614dcb39931137dde4a0da93e",
+      ".vscode/tasks.json": "eba67ae3aa226c4617013c233f35c7fca201434681d1d50ca882b63132980353",
+      "AGENTS.md": "e7f908c1d081c0e0890c70fe72fd46306d1fb2bbc1d7e84e0477240557346efb",
+      "ARCHITECTURE.md": "493d7459af8bb6db393276761f081888b6af628351991fb3a02e63f9a74b014a",
+      "README.md": "16f99948d3686a309f3a45a142418c93907e394eb388afc18f1e27fe05a02b5a",
+      "USB_SERIAL_FEASIBILITY.md": "f491177c6af788f29d6fa8d9bdbc68f161fd36c23b065cf557bc06950bd34d26",
+      "analysis_options.yaml": "248e6dce935a62a712d2d9d09d675ee6360b457ac047e9788642188d66026b9f",
+      "android/.gitignore": "9689053e8616d047c0a025d748cd6bcfab6951d18d2ca0ce305b2fce7a085622",
+      "android/app/build.gradle": "552176529346fd94883c8b05067bb9f3fd71d9fecc2d4dcb77ed909dce049c0f",
+      "android/app/src/debug/AndroidManifest.xml": "5d2b547dccc5e135eab6aef97f1444e94444e4643e819702fbd970a960517eb5",
+      "android/app/src/main/AndroidManifest.xml": "28ee0b2738b8bbc757fecabbbe9aea5c7c1d4000d6308d1502983371a8719700",
+      "android/app/src/main/kotlin/com/example/phone_comm/MainActivity.kt": "3e7fdb53130434d9fcaa51cc6d51de18798ea552ff39d0c30a3bda134c9496b3",
+      "android/app/src/main/res/drawable-v21/launch_background.xml": "dca312ec77de83e43ef70a825c299b51451247286c29167d62f19165750b8793",
+      "android/app/src/main/res/drawable/launch_background.xml": "2df60e2cfbee873ce2858088cf003e6b93498f2f568476da437610467ea1a9d7",
+      "android/app/src/main/res/mipmap-hdpi/ic_launcher.png": "6a7c8f0d703e3682108f9662f813302236240d3f8f638bb391e32bfb96055fef",
+      "android/app/src/main/res/mipmap-mdpi/ic_launcher.png": "c7c0c0189145e4e32a401c61c9bdc615754b0264e7afae24e834bb81049eaf81",
+      "android/app/src/main/res/mipmap-xhdpi/ic_launcher.png": "e14aa40904929bf313fded22cf7e7ffcbf1d1aac4263b5ef1be8bfce650397aa",
+      "android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png": "4d470bf22d5c17d84edc5f82516d1ba8a1c09559cd761cefb792f86d9f52b540",
+      "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": "3c34e1f298d0c9ea3455d46db6b7759c8211a49e9ec6e44b635fc5c87dfb4180",
+      "android/app/src/main/res/values-night/styles.xml": "ea763597dc1a84c8034251caee98d7753e0fbf57340ffc94677427de4b537516",
+      "android/app/src/main/res/values/styles.xml": "cca15a99b59380a548bf6a890f7ca5380ee509b1f9bbb2f5f9ec3589fa25c2f7",
+      "android/app/src/profile/AndroidManifest.xml": "5d2b547dccc5e135eab6aef97f1444e94444e4643e819702fbd970a960517eb5",
+      "android/build.gradle": "fd7afdd31d47e7c5c04b9a1f84bbac13024e678242afc352db09eaeb862ebcf7",
+      "android/gradle.properties": "80daf2f81225d583153ab62d3455958c240fbd48ca357ab852ee5d817158f463",
+      "android/gradle/wrapper/gradle-wrapper.properties": "ddc4746194544ab25aa7d0e4f1723e955c75a495ce13eea6d0b25d4824b5b132",
+      "android/settings.gradle": "cdc7ab227bf55f9269eeae00937b55ba034317c0a235c97108a4e1f0f1912ead",
+      "docs/architecture/modules.md": "4e9179d0818f846f5f449dc5e712fe5c5f2c327c9fc0929ea3e92b5687b24443",
+      "docs/architecture/startup-flow.md": "06773f8f3727fdd2bb60116b5127bdd3bd11ec4fb13c454e095333f7714e0d1c",
+      "docs/build-guide/build.md": "33c5be44a299a1e7669173ade6d873d33fca9c02277bf305016f218527ed09fc",
+      "docs/index.md": "afa04377cc8d1e7fcd83d5c9fd70db60a483ad64f7fbec4c6c5bd0f22d3bbd94",
+      "docs/interfaces/event-map.md": "9cf62a12deae29713f6d095ae3dc870539b6f8752f9293074f76f459d14d8f92",
+      "lib/main.dart": "456a7744bbfcc5a53af352ab19a88bd19c8e11a11789a9d520fa52124c9c426f",
+      "pubspec.lock": "49b4d5129e837551ec008cf3429b2eb0daf5dc73f7ebf290fa58312e5759d544",
+      "pubspec.yaml": "932aad1b2c6078728fddabd79923a130ec2c1090c455aa02d16ac60328ed09e9",
+      "test/hex_test.dart": "ea1c95f7ac845500d4802a076999a81a18f49c643c997198e6c56a76c3089c32",
+      "test/mobile_layout_test.dart": "e36af2259a3b5523fe7364b2be3de14bf54f7d316dee9ebd73ba665fe6be7799",
+      "third_party/usb_serial/LICENSE": "78759739eda5208bbdc1b34384962732e07da862af80132fdd28f081b27f24fc",
+      "third_party/usb_serial/android/build.gradle": "44ac787a18e564e7f44464bc3bca48a062dd383bafae332a31040709c8c43b89",
+      "third_party/usb_serial/android/src/main/AndroidManifest.xml": "5a90cfb5f28732b9a8de9a76868f86eb78c29d82aa0188c88ee3c4e9bd894f8f",
+      "third_party/usb_serial/android/src/main/java/dev/bessems/usbserial/UsbSerialPlugin.java": "44e54fac729cbac6f73cf74980f91cf30d8a418632652441a4e141d8c6104cf7",
+      "third_party/usb_serial/android/src/main/java/dev/bessems/usbserial/UsbSerialPortAdapter.java": "d4f5429202c46217f545b06ee1544ff460d6c93ac489584d9144995c49d12efa",
+      "third_party/usb_serial/lib/echo_port.dart": "874e8061df0aa89ac3a099abd7e1a8d8dfac8609dfcd0999014b20dc54249ef7",
+      "third_party/usb_serial/lib/transaction.dart": "2d073e28a067bec79e1a7c99f40547f787fffd47fd1049addd0be463405772a1",
+      "third_party/usb_serial/lib/transformers.dart": "ef60922c0aed30e0d034b72c2ee83fe3bf317274f464cb25827fcc003138d31f",
+      "third_party/usb_serial/lib/types.dart": "dd94eaa92df1a9b4b44de495868c560be022f878e0a4aee37bf93e9cb3e29920",
+      "third_party/usb_serial/lib/usb_serial.dart": "64ebf693223aee2694d629da0f7f98ca6165191c00ee846440a42e52c65f014d",
+      "third_party/usb_serial/pubspec.yaml": "44793a9b7f415078958f2fe2bfc162de86f9b52a691a6a9ae8c676d441ef959e"
+    },
+    "head": "2ca8a286e43c5bb6ce30d74c690bbed18dfb7893"
+  }
+}
